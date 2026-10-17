@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abrar MiniBank</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a212b; --line:#2a3442; --fg:#e6edf3; --muted:#8b98a8; --accent:#4f8cff; --ok:#3ccf7a; --bad:#ff5d5d; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:baseline; }
+  header h1 { margin:0; font-size:20px; } header span { color:var(--muted); font-size:13px; }
+  main { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; padding:20px; max-width:1300px; margin:auto; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  h2 { margin:0 0 10px; font-size:15px; color:var(--accent); }
+  label { display:block; font-size:12px; color:var(--muted); margin-top:8px; }
+  input, select { width:100%; padding:8px 10px; margin-top:3px; background:#0f1419; border:1px solid var(--line); color:var(--fg); border-radius:8px; }
+  button { margin-top:12px; padding:9px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+  button.secondary { background:#2a3442; }
+  pre { background:#0b0f14; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; overflow:auto; white-space:pre-wrap; margin-top:10px; min-height:36px; }
+  .ok { color:var(--ok);} .bad { color:var(--bad);}
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+  td, th { padding:6px 4px; border-bottom:1px solid var(--line); text-align:left; }
+  .cardvis { margin-top:12px; padding:16px; border-radius:12px; background:linear-gradient(135deg,#2b5cff,#8a2bff); font-family:ui-monospace,monospace; }
+  .cardvis .pan { font-size:20px; letter-spacing:2px; margin:10px 0; }
+  .cardvis small { opacity:.8; }
+</style>
+</head>
+<body>
+<header><h1>🏦 Abrar MiniBank</h1><span>local gateway · no API keys · you are the bank</span></header>
+<main>
+
+<section>
+  <h2>1. Accounts</h2>
+  <label>Name <input id="acc-name" placeholder="e.g. Abrar"></label>
+  <button onclick="newAccount()">Create account</button>
+  <button class="secondary" onclick="loadAccounts()">Refresh</button>
+  <table id="acc-table"><thead><tr><th>ID</th><th>Name</th><th>Balance</th><th>Cards</th><th>Wallets</th></tr></thead><tbody></tbody></table>
+  <pre id="acc-out"></pre>
+</section>
+
+<section>
+  <h2>2. Issue a card</h2>
+  <label>Account ID <input id="card-acc" type="number" min="1"></label>
+  <div class="row">
+    <label>Type <select id="card-kind"><option value="debit">Debit</option><option value="credit">Credit</option></select></label>
+    <label>Credit limit <input id="card-limit" type="number" step="0.01" value="0"></label>
+  </div>
+  <button onclick="issueCard()">Issue card</button>
+  <div id="card-vis"></div>
+  <pre id="card-out"></pre>
+</section>
+
+<section>
+  <h2>3. Digital wallet (no card needed)</h2>
+  <label>Account ID <input id="w-acc" type="number" min="1"></label>
+  <label>Handle (e.g. name or phone) <input id="w-handle" placeholder="abrar"></label>
+  <div class="row">
+    <label>PIN <input id="w-pin" type="password" placeholder="4+ digits"></label>
+    <label>NFC tag UID (optional) <input id="w-nfc" placeholder="04A2B3..."></label>
+  </div>
+  <button onclick="newWallet()">Create wallet</button>
+  <pre id="w-out"></pre>
+</section>
+
+<section>
+  <h2>4. Teller: cash top-up</h2>
+  <label>Card number or wallet handle <input id="t-dest"></label>
+  <label>Amount <input id="t-amt" type="number" step="0.01"></label>
+  <button onclick="topup()">Add money</button>
+  <pre id="t-out"></pre>
+</section>
+
+<section>
+  <h2>5. Send money</h2>
+  <label>Pay with <select id="p-mode" onchange="toggleSrc('p')"><option value="card">Card</option><option value="wallet">Wallet</option></select></label>
+  <div id="p-card">
+    <label>Card number <input id="p-pan" placeholder="5342 10xx xxxx xxxx"></label>
+    <div class="row"><label>Expiry <input id="p-exp" placeholder="MM/YY"></label><label>CVV <input id="p-cvv" type="password"></label></div>
+  </div>
+  <div id="p-wallet" style="display:none">
+    <div class="row"><label>Wallet handle <input id="p-wal"></label><label>PIN <input id="p-pin" type="password"></label></div>
+  </div>
+  <label>To (card number or wallet handle) <input id="p-dest"></label>
+  <div class="row"><label>Amount <input id="p-amt" type="number" step="0.01"></label><label>Memo <input id="p-memo"></label></div>
+  <button onclick="pay()">Send</button>
+  <pre id="p-out"></pre>
+</section>
+
+<section>
+  <h2>6. Balance & history</h2>
+  <label>Check with <select id="b-mode" onchange="toggleSrc('b')"><option value="card">Card</option><option value="wallet">Wallet</option></select></label>
+  <div id="b-card">
+    <label>Card number <input id="b-pan"></label>
+    <div class="row"><label>Expiry <input id="b-exp" placeholder="MM/YY"></label><label>CVV <input id="b-cvv" type="password"></label></div>
+  </div>
+  <div id="b-wallet" style="display:none">
+    <div class="row"><label>Wallet handle <input id="b-wal"></label><label>PIN <input id="b-pin" type="password"></label></div>
+  </div>
+  <button onclick="checkBalance()">Check</button>
+  <pre id="b-out"></pre>
+  <table id="h-table"><thead><tr><th>Ref</th><th>Kind</th><th>From</th><th>To</th><th>Amount</th><th>Status</th></tr></thead><tbody></tbody></table>
+</section>
+
+</main>
+<script>
+const CUR = 'PKR';
+const money = c => (c/100).toFixed(2) + ' ' + CUR;
+const cents = v => Math.round(parseFloat(v || 0) * 100);
+const $ = id => document.getElementById(id);
+async function api(path, body, method) {
+  const r = await fetch('/api' + path, { method: method || (body ? 'POST' : 'GET'), headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.detail || r.statusText);
+  return j;
+}
+function show(id, data, ok=true) { const el = $(id); el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2); el.className = ok ? 'ok' : 'bad'; }
+function toggleSrc(p) { const m = $(p+'-mode').value; $(p+'-card').style.display = m==='card'?'':'none'; $(p+'-wallet').style.display = m==='wallet'?'':'none'; }
+function src(p) { return $(p+'-mode').value==='card' ? {pan:$(p+'-pan').value, expiry:$(p+'-exp').value, cvv:$(p+'-cvv').value} : {wallet:$(p+'-wal').value, pin:$(p+'-pin').value}; }
+
+async function loadAccounts() {
+  try { const accs = await api('/accounts');
+    $('acc-table').querySelector('tbody').innerHTML = accs.map(a => `<tr><td>${a.id}</td><td>${a.name}</td><td>${money(a.balance)}</td><td>${a.cards.map(c=>c.kind+' •'+c.last4+(c.status!=='active'?' ('+c.status+')':'')).join('<br>')}</td><td>${a.wallets.map(w=>w.id).join('<br>')}</td></tr>`).join('');
+  } catch(e) { show('acc-out', e.message, false); }
+}
+async function newAccount() { try { show('acc-out', await api('/accounts', {name:$('acc-name').value})); loadAccounts(); } catch(e){ show('acc-out', e.message, false);} }
+async function issueCard() {
+  try { const c = await api('/cards', {account_id:+$('card-acc').value, kind:$('card-kind').value, credit_limit:cents($('card-limit').value)});
+    $('card-vis').innerHTML = `<div class="cardvis"><small>ABRAR MINIBANK · ${c.kind.toUpperCase()}</small><div class="pan">${c.pan_pretty}</div><small>EXP ${c.expiry} &nbsp; CVV ${c.cvv}</small></div>`;
+    show('card-out', 'Save these now — the full number and CVV are shown only once.'); loadAccounts();
+  } catch(e){ show('card-out', e.message, false);} }
+async function newWallet() { try { show('w-out', await api('/wallets', {account_id:+$('w-acc').value, handle:$('w-handle').value, pin:$('w-pin').value, nfc_uid:$('w-nfc').value||null})); loadAccounts(); } catch(e){ show('w-out', e.message, false);} }
+async function topup() { try { show('t-out', await api('/topup', {destination:$('t-dest').value, amount:cents($('t-amt').value)})); loadAccounts(); } catch(e){ show('t-out', e.message, false);} }
+async function pay() { try { const tx = await api('/pay', {source:src('p'), destination:$('p-dest').value, amount:cents($('p-amt').value), memo:$('p-memo').value}); show('p-out', tx, tx.status==='approved'); loadAccounts(); } catch(e){ show('p-out', e.message, false);} }
+async function checkBalance() {
+  try { const b = await api('/balance', src('b')); show('b-out', `${b.name}: balance ${money(b.balance)}, available ${money(b.available)}` + (b.btc_address ? `\nBTC address: ${b.btc_address}` : ''));
+    const h = await api('/accounts/'+b.account_id+'/history');
+    $('h-table').querySelector('tbody').innerHTML = h.map(t => `<tr><td>${t.ref}</td><td>${t.kind}</td><td>${t.from_account??'cash'}</td><td>${t.to_account??'cash'}</td><td>${money(t.amount)}</td><td class="${t.status==='approved'?'ok':'bad'}">${t.status}${t.decline_reason?' – '+t.decline_reason:''}</td></tr>`).join('');
+  } catch(e){ show('b-out', e.message, false);} }
+loadAccounts();
+</script>
+</body>
+</html>
